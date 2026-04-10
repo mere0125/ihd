@@ -132,7 +132,7 @@
     }
   </style>
 </head>
-<body>
+<body tabindex="0">
   <div class="screen">
     <div class="topbar">
       <div>
@@ -225,29 +225,26 @@
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
-      const filter = ctx.createBiquadFilter();
 
+      // simpler, cleaner, less processed (closer to your earlier version)
       osc1.type = "sine";
       osc2.type = "sine";
-      osc1.frequency.setValueAtTime(720, now);
-      osc2.frequency.setValueAtTime(680, now);
 
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(1400, now);
+      osc1.frequency.setValueAtTime(740, now);
+      osc2.frequency.setValueAtTime(700, now);
 
       gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
 
-      osc1.connect(filter);
-      osc2.connect(filter);
-      filter.connect(gain);
+      osc1.connect(gain);
+      osc2.connect(gain);
       gain.connect(ctx.destination);
 
       osc1.start(now);
       osc2.start(now);
-      osc1.stop(now + 0.2);
-      osc2.stop(now + 0.2);
+      osc1.stop(now + 0.18);
+      osc2.stop(now + 0.18);
     }
 
     function speakTicket(ticketText) {
@@ -271,14 +268,20 @@
 
     function announce() {
       const ctx = getAudioCtx();
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
+      const runAnnouncement = () => {
+        playDing();
+        window.setTimeout(() => {
+          speakTicket(formatTicket(currentServing));
+        }, 220);
+      };
 
-      playDing();
-      window.setTimeout(() => {
-        speakTicket(formatTicket(currentServing));
-      }, 220);
+      if (ctx.state === "suspended") {
+        ctx.resume().then(runAnnouncement).catch(() => {
+          speakTicket(formatTicket(currentServing));
+        });
+      } else {
+        runAnnouncement();
+      }
     }
 
     function advanceNowServing() {
@@ -297,22 +300,39 @@
       }
     }
 
-    document.addEventListener("keydown", (event) => {
+    function handleKey(event) {
       if (event.code === "Space" || event.key === " " || event.key === "Spacebar") {
         event.preventDefault();
         advanceNowServing();
+        return;
       }
 
       if (event.key === "q" || event.key === "Q") {
         event.preventDefault();
         reverseNowServing();
       }
+    }
+
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("keydown", handleKey);
+
+    window.addEventListener("load", () => {
+      document.body.focus();
     });
+
+    document.addEventListener("click", () => {
+      document.body.focus();
+      const ctx = getAudioCtx();
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+    }, { once: true });
 
     console.assert(formatTicket(1) === "A-001", "formatTicket should pad single digits");
     console.assert(formatTicket(12) === "A-012", "formatTicket should pad double digits");
     console.assert(formatCase(1022) === "#1022", "formatCase should prefix the case number");
     console.assert(currentServing === 1, "initial currentServing should be 1");
+    console.assert(formatTicket(123) === "A-123", "formatTicket should preserve three digits");
 
     renderAll();
   </script>
